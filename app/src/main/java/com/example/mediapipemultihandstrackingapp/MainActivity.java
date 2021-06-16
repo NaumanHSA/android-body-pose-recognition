@@ -91,7 +91,7 @@ public class MainActivity extends AppCompatActivity {
     private Classifier classifier;
     private List<String> labelsList;
     private String label;
-    private ByteBuffer landmarks;
+    private float[] landmarksArray;
 
     private TextView label_holder;
 
@@ -153,7 +153,7 @@ public class MainActivity extends AppCompatActivity {
                     try {
                         byte[] landmarksRaw = PacketGetter.getProtoBytes(packet);
                         NormalizedLandmarkList poseLandmarks = NormalizedLandmarkList.parseFrom(landmarksRaw);
-                        landmarks = getPoseLandmarksBuffer(poseLandmarks);
+                        landmarksArray = getPoseLandmarksArray(poseLandmarks);
                         runOnUiThread(action);
 
                     } catch (InvalidProtocolBufferException exception) {
@@ -279,15 +279,25 @@ public class MainActivity extends AppCompatActivity {
     private void classify(){
         // Creates inputs for reference.
         TensorBuffer inputFeature0 = TensorBuffer.createFixedSize(new int[]{1, 132}, DataType.FLOAT32);
-        inputFeature0.loadBuffer(landmarks);
+        inputFeature0.loadArray(landmarksArray);
 
         // Runs model inference and gets result.
         Classifier.Outputs outputs = classifier.process(inputFeature0);
         TensorBuffer outputFeature0 = outputs.getOutputFeature0AsTensorBuffer();
 
-        float[] arr = outputFeature0.getFloatArray();
-        int class_index = argmax(arr);
+//        Log.v(TAG, floatArrayToString(arr));
+        int class_index = argmax(outputFeature0.getFloatArray());
         label = labelsList.get(class_index);
+    }
+
+    private String floatArrayToString(float[] arr){
+        String str = "Float Array: [";
+
+        for (int i = 0; i < arr.length; i++) {
+            str += String.valueOf(arr[i]) + ", ";
+        }
+        str += " ]";
+        return str;
     }
 
     private List<String> loadLabelList(AssetManager assetManager, String labelPath) throws IOException {
@@ -313,15 +323,17 @@ public class MainActivity extends AppCompatActivity {
         return arg;
     }
 
-    private static ByteBuffer getPoseLandmarksBuffer(NormalizedLandmarkList poseLandmarks) {
-        ByteBuffer bufferInput = ByteBuffer.allocate(4 * 132);
+    private static float[] getPoseLandmarksArray(NormalizedLandmarkList poseLandmarks) {
+        float[] arr = new float[132];
+        int arr_index = 0;
         for (NormalizedLandmark landmark : poseLandmarks.getLandmarkList()) {
-            bufferInput.putFloat(landmark.getX());
-            bufferInput.putFloat(landmark.getY());
-            bufferInput.putFloat(landmark.getZ());
-            bufferInput.putFloat(landmark.getVisibility());
+            arr[arr_index] = landmark.getX();
+            arr[arr_index + 1] = landmark.getY();
+            arr[arr_index + 2] = landmark.getZ();
+            arr[arr_index + 3] = landmark.getVisibility();
+            arr_index += 4;
         }
-        return bufferInput;
+        return arr;
     }
 
     private static String getPoseLandmarksDebugString(NormalizedLandmarkList poseLandmarks) {
